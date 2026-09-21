@@ -1,0 +1,21 @@
+{
+  "name": "careconnect-ai-hospital",
+  "version": "1.0.0",
+  "description": "AI Hospital Appointment Assistant & FrontDesk Management System",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "test": "node tests/test_flow.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.8.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "nodemailer": "^6.10.0"
+  },
+  "keywords": ["hospital", "ai", "appointments", "healthcare"],
+  "author": "",
+  "license": "ISC"
+}
