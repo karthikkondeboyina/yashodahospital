@@ -20,14 +20,15 @@ class EmailService {
     this.isConfigured = !!(this.user && this.pass);
 
     if (this.isConfigured) {
-      // Use direct pool/host config which works reliably across all cloud hosting providers (Render, AWS, GCP, etc.)
+      // Force IPv4 (family: 4) because Render free tier does not route outbound IPv6 (causes ENETUNREACH)
       const smtpPort = this.port === 465 || this.secure ? 465 : (this.port || 587);
       const isSecure = smtpPort === 465;
 
       this.transporter = nodemailer.createTransport({
-        host: this.host || 'smtp.gmail.com',
+        service: 'gmail',
+        host: 'smtp.gmail.com',
         port: smtpPort,
-        secure: isSecure, // true for 465, false for 587
+        secure: isSecure,
         auth: {
           user: this.user,
           pass: this.pass
@@ -35,11 +36,12 @@ class EmailService {
         tls: {
           rejectUnauthorized: false
         },
-        connectionTimeout: 15000,
-        greetingTimeout: 15000,
-        socketTimeout: 20000
+        family: 4, // CRITICAL: forces IPv4, prevents ENETUNREACH on Render/Cloud
+        connectionTimeout: 20000,
+        greetingTimeout: 20000,
+        socketTimeout: 25000
       });
-      console.log(`EmailService: Configured with live Gmail SMTP transport on ${this.host}:${smtpPort} (secure: ${isSecure}).`);
+      console.log(`EmailService: Configured with live Gmail SMTP transport on ${this.host}:${smtpPort} (IPv4 forced, secure: ${isSecure}).`);
     } else {
       console.log('EmailService: Running in simulation mode (no SMTP credentials provided). Emails will be saved to mock-emails/ and recorded.');
     }
@@ -142,6 +144,7 @@ class EmailService {
             tls: {
               rejectUnauthorized: false
             },
+            family: 4,
             connectionTimeout: 15000
           });
           const info = await fallbackTransporter.sendMail({
