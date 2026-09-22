@@ -20,17 +20,26 @@ class EmailService {
     this.isConfigured = !!(this.user && this.pass);
 
     if (this.isConfigured) {
+      // Use direct pool/host config which works reliably across all cloud hosting providers (Render, AWS, GCP, etc.)
+      const smtpPort = this.port === 465 || this.secure ? 465 : (this.port || 587);
+      const isSecure = smtpPort === 465;
+
       this.transporter = nodemailer.createTransport({
-        service: 'gmail',
+        host: this.host || 'smtp.gmail.com',
+        port: smtpPort,
+        secure: isSecure, // true for 465, false for 587
         auth: {
           user: this.user,
           pass: this.pass
         },
         tls: {
           rejectUnauthorized: false
-        }
+        },
+        connectionTimeout: 15000,
+        greetingTimeout: 15000,
+        socketTimeout: 20000
       });
-      console.log('EmailService: Configured with live Gmail SMTP transport.');
+      console.log(`EmailService: Configured with live Gmail SMTP transport on ${this.host}:${smtpPort} (secure: ${isSecure}).`);
     } else {
       console.log('EmailService: Running in simulation mode (no SMTP credentials provided). Emails will be saved to mock-emails/ and recorded.');
     }
@@ -120,8 +129,33 @@ class EmailService {
         console.log(`[EmailService] Sent live email to ${recipient}: ${info.messageId}`);
         return { status: 'Sent', messageId: info.messageId };
       } catch (err) {
-        console.error(`[EmailService] Failed to send email to ${recipient}:`, err.message);
-        return { status: 'Failed', error: err.message };
+        console.warn(`[EmailService] Primary transport failed (${err.message}). Attempting port 465 SSL fallback...`);
+        try {
+          const fallbackTransporter = nodemailer.createTransport({
+            host: 'smtp.gmail.com',
+            port: 465,
+            secure: true,
+            auth: {
+              user: this.user,
+              pass: this.pass
+            },
+            tls: {
+              rejectUnauthorized: false
+            },
+            connectionTimeout: 15000
+          });
+          const info = await fallbackTransporter.sendMail({
+            from: this.from,
+            to: recipient,
+            subject,
+            html
+          });
+          console.log(`[EmailService] Sent live email via fallback port 465 to ${recipient}: ${info.messageId}`);
+          return { status: 'Sent', messageId: info.messageId };
+        } catch (fallbackErr) {
+          console.error(`[EmailService] Failed to send email to ${recipient}:`, fallbackErr.message);
+          return { status: 'Failed', error: fallbackErr.message };
+        }
       }
     } else {
       // Simulation mode: write email file for audit / verification
@@ -143,7 +177,20 @@ class EmailService {
         await this.transporter.sendMail({ from: this.from, to: recipient, subject, html });
         return { status: 'Sent' };
       } catch (err) {
-        return { status: 'Failed', error: err.message };
+        try {
+          const fallbackTransporter = nodemailer.createTransport({
+            host: 'smtp.gmail.com',
+            port: 465,
+            secure: true,
+            auth: { user: this.user, pass: this.pass },
+            tls: { rejectUnauthorized: false },
+            connectionTimeout: 15000
+          });
+          await fallbackTransporter.sendMail({ from: this.from, to: recipient, subject, html });
+          return { status: 'Sent' };
+        } catch (fErr) {
+          return { status: 'Failed', error: fErr.message };
+        }
       }
     } else {
       console.log(`[EmailService] [Simulation] Cancellation email logged for ${recipient} (Ref: ${booking.appointment_ref})`);
