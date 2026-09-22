@@ -2,10 +2,10 @@
 // CareConnect AI — Client Application Script
 // ==========================================
 
-// Automatically connect to backend port 3000 if opened via Live Server (port 5500)
-const API_BASE = (window.location.port === '3000' || window.location.port === '')
-  ? '/api' 
-  : 'http://localhost:3000/api';
+// Automatically use relative path '/api' in production or port 3000, and fallback to localhost:3000 for VS Code Live Server (port 5500)
+const API_BASE = (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1')
+  ? '/api'
+  : ((window.location.port === '3000' || window.location.port === '') ? '/api' : 'http://localhost:3000/api');
 
 // Global Client State
 let currentMode = 'patient';
