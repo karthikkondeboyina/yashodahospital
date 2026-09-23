@@ -58,8 +58,9 @@ class NotificationService extends EventEmitter {
       `);
 
       if (result.status === 'Sent') {
-        updateStmt.run('Sent', null, notifId);
-        console.log(`[NotificationService] Notification ID ${notifId} marked as 'Sent'`);
+        const details = typeof result.messageId === 'string' ? result.messageId : JSON.stringify(result.messageId || { status: 'Sent' });
+        updateStmt.run('Sent', details, notifId);
+        console.log(`[NotificationService] Notification ID ${notifId} marked as 'Sent' with info:`, details);
       } else {
         updateStmt.run('Failed', result.error || 'Unknown email failure', notifId);
         console.error(`[NotificationService] Notification ID ${notifId} marked as 'Failed'`);

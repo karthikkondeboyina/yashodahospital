@@ -161,8 +161,8 @@ class EmailService {
           req.write(postData);
           req.end();
         });
-        console.log(`[EmailService] Sent live email via Resend HTTPS API to ${recipient}`);
-        return { status: 'Sent', method: 'resend' };
+        console.log(`[EmailService] Sent live email via Resend HTTPS API to ${recipient}: ${result.data}`);
+        return { status: 'Sent', method: 'resend', messageId: result.data };
       } catch (err) {
         console.error(`[EmailService] Resend API error:`, err.message);
         return { status: 'Failed', error: err.message };
@@ -204,8 +204,8 @@ class EmailService {
           req.write(postData);
           req.end();
         });
-        console.log(`[EmailService] Sent live email via Brevo HTTPS API to ${recipient}`);
-        return { status: 'Sent', method: 'brevo' };
+        console.log(`[EmailService] Sent live email via Brevo HTTPS API to ${recipient}: ${result.data}`);
+        return { status: 'Sent', method: 'brevo', messageId: result.data };
       } catch (err) {
         console.error(`[EmailService] Brevo API error:`, err.message);
         return { status: 'Failed', error: err.message };
