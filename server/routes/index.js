@@ -9,10 +9,15 @@ const router = express.Router();
 
 // --- Health Check ---
 router.get('/health', (req, res) => {
+  const emailService = require('../services/emailService');
   res.json({
     status: 'healthy',
     timestamp: new Date().toISOString(),
-    service: 'CareConnect AI Hospital Service'
+    service: 'CareConnect AI Hospital Service',
+    emailConfigured: emailService.isConfigured,
+    smtpHost: emailService.host,
+    smtpPort: emailService.port,
+    smtpUser: emailService.user ? emailService.user.replace(/(?<=.{3}).(?=.*@)/g, '*') : 'NOT_SET'
   });
 });
 

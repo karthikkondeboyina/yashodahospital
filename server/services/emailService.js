@@ -20,15 +20,14 @@ class EmailService {
     this.isConfigured = !!(this.user && this.pass);
 
     if (this.isConfigured) {
-      // Force IPv4 (family: 4) because Render free tier does not route outbound IPv6 (causes ENETUNREACH)
-      const smtpPort = this.port === 465 || this.secure ? 465 : (this.port || 587);
+      // Direct explicit SMTP config (Render blocks standard 587 STARTTLS, so port 465 SSL with IPv4 is required)
+      const smtpPort = this.port ? parseInt(this.port, 10) : 465;
       const isSecure = smtpPort === 465;
 
       this.transporter = nodemailer.createTransport({
-        service: 'gmail',
         host: 'smtp.gmail.com',
         port: smtpPort,
-        secure: isSecure,
+        secure: isSecure, // true for 465 SSL
         auth: {
           user: this.user,
           pass: this.pass
@@ -36,12 +35,12 @@ class EmailService {
         tls: {
           rejectUnauthorized: false
         },
-        family: 4, // CRITICAL: forces IPv4, prevents ENETUNREACH on Render/Cloud
-        connectionTimeout: 20000,
-        greetingTimeout: 20000,
-        socketTimeout: 25000
+        family: 4, // Forces IPv4 to bypass cloud IPv6 unreachability
+        connectionTimeout: 15000,
+        greetingTimeout: 15000,
+        socketTimeout: 20000
       });
-      console.log(`EmailService: Configured with live Gmail SMTP transport on ${this.host}:${smtpPort} (IPv4 forced, secure: ${isSecure}).`);
+      console.log(`EmailService: Configured with live Gmail SMTP transport on smtp.gmail.com:${smtpPort} (IPv4 forced, secure: ${isSecure}).`);
     } else {
       console.log('EmailService: Running in simulation mode (no SMTP credentials provided). Emails will be saved to mock-emails/ and recorded.');
     }
