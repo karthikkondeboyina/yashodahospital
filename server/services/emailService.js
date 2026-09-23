@@ -170,8 +170,10 @@ class EmailService {
     } else if (this.brevoApiKey) {
       try {
         const https = require('https');
+        const brevoSenderEmail = process.env.BREVO_SENDER_EMAIL || this.user || 'karthikkondeboyina@gmail.com';
+        const brevoSenderName = process.env.BREVO_SENDER_NAME || 'CareConnect AI Hospital';
         const postData = JSON.stringify({
-          sender: { name: 'CareConnect AI Hospital', email: this.user || 'karthikkondeboyina@gmail.com' },
+          sender: { name: brevoSenderName, email: brevoSenderEmail },
           to: [{ email: recipient }],
           subject,
           htmlContent: html
