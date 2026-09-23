@@ -17,17 +17,22 @@ class EmailService {
       fs.mkdirSync(this.mockDir, { recursive: true });
     }
 
-    this.isConfigured = !!(this.user && this.pass);
+    this.resendApiKey = process.env.RESEND_API_KEY || '';
+    this.brevoApiKey = process.env.BREVO_API_KEY || '';
 
-    if (this.isConfigured) {
-      // Default to port 465 with direct SSL encryption (Port 587 STARTTLS suffers connection drops across many networks and cloud providers)
-      const smtpPort = this.port ? parseInt(this.port, 10) : 465;
-      const isSecure = smtpPort === 465 || this.secure;
+    this.isConfigured = !!((this.user && this.pass) || this.resendApiKey || this.brevoApiKey);
+    this.mode = this.resendApiKey ? 'resend-https-api' : (this.brevoApiKey ? 'brevo-https-api' : (this.user && this.pass ? 'gmail-smtp' : 'simulation'));
 
+    if (this.resendApiKey) {
+      console.log('EmailService: Configured with live Resend HTTP API (Port 443 HTTPS - 100% Render compatible).');
+    } else if (this.brevoApiKey) {
+      console.log('EmailService: Configured with live Brevo HTTP API (Port 443 HTTPS - 100% Render compatible).');
+    } else if (this.user && this.pass) {
+      // Direct SMTP Config
       this.transporter = nodemailer.createTransport({
         host: 'smtp.gmail.com',
         port: 465,
-        secure: true, // SSL direct
+        secure: true,
         auth: {
           user: this.user,
           pass: this.pass
@@ -35,14 +40,14 @@ class EmailService {
         tls: {
           rejectUnauthorized: false
         },
-        family: 4, // Forces IPv4
-        connectionTimeout: 15000,
-        greetingTimeout: 15000,
-        socketTimeout: 20000
+        family: 4,
+        connectionTimeout: 10000,
+        greetingTimeout: 10000,
+        socketTimeout: 15000
       });
-      console.log(`EmailService: Configured with live Gmail SMTP transport on smtp.gmail.com:465 (Direct SSL, IPv4).`);
+      console.log('EmailService: Configured with live Gmail SMTP transport on smtp.gmail.com:465.');
     } else {
-      console.log('EmailService: Running in simulation mode (no SMTP credentials provided). Emails will be saved to mock-emails/ and recorded.');
+      console.log('EmailService: Running in simulation mode (no credentials provided).');
     }
   }
 
@@ -119,7 +124,93 @@ class EmailService {
 
     console.log(`[EmailService] Preparing confirmation email for ${recipient} (Ref: ${booking.appointment_ref})...`);
 
-    if (this.isConfigured) {
+    if (this.resendApiKey) {
+      try {
+        const https = require('https');
+        const postData = JSON.stringify({
+          from: this.from.includes('<') ? this.from : `CareConnect AI Hospital <onboarding@resend.dev>`,
+          to: [recipient],
+          subject,
+          html
+        });
+        const options = {
+          hostname: 'api.resend.com',
+          port: 443,
+          path: '/emails',
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${this.resendApiKey}`,
+            'Content-Type': 'application/json',
+            'Content-Length': Buffer.byteLength(postData)
+          }
+        };
+
+        const result = await new Promise((resolve, reject) => {
+          const req = https.request(options, (res) => {
+            let body = '';
+            res.on('data', chunk => body += chunk);
+            res.on('end', () => {
+              if (res.statusCode >= 200 && res.statusCode < 300) {
+                resolve({ status: 'Sent', data: body });
+              } else {
+                reject(new Error(`Resend API returned ${res.statusCode}: ${body}`));
+              }
+            });
+          });
+          req.on('error', reject);
+          req.write(postData);
+          req.end();
+        });
+        console.log(`[EmailService] Sent live email via Resend HTTPS API to ${recipient}`);
+        return { status: 'Sent', method: 'resend' };
+      } catch (err) {
+        console.error(`[EmailService] Resend API error:`, err.message);
+        return { status: 'Failed', error: err.message };
+      }
+    } else if (this.brevoApiKey) {
+      try {
+        const https = require('https');
+        const postData = JSON.stringify({
+          sender: { name: 'CareConnect AI Hospital', email: this.user || 'karthikkondeboyina@gmail.com' },
+          to: [{ email: recipient }],
+          subject,
+          htmlContent: html
+        });
+        const options = {
+          hostname: 'api.brevo.com',
+          port: 443,
+          path: '/v3/smtp/email',
+          method: 'POST',
+          headers: {
+            'api-key': this.brevoApiKey,
+            'Content-Type': 'application/json',
+            'Content-Length': Buffer.byteLength(postData)
+          }
+        };
+
+        const result = await new Promise((resolve, reject) => {
+          const req = https.request(options, (res) => {
+            let body = '';
+            res.on('data', chunk => body += chunk);
+            res.on('end', () => {
+              if (res.statusCode >= 200 && res.statusCode < 300) {
+                resolve({ status: 'Sent', data: body });
+              } else {
+                reject(new Error(`Brevo API returned ${res.statusCode}: ${body}`));
+              }
+            });
+          });
+          req.on('error', reject);
+          req.write(postData);
+          req.end();
+        });
+        console.log(`[EmailService] Sent live email via Brevo HTTPS API to ${recipient}`);
+        return { status: 'Sent', method: 'brevo' };
+      } catch (err) {
+        console.error(`[EmailService] Brevo API error:`, err.message);
+        return { status: 'Failed', error: err.message };
+      }
+    } else if (this.isConfigured && this.transporter) {
       try {
         const info = await this.transporter.sendMail({
           from: this.from,
@@ -130,34 +221,8 @@ class EmailService {
         console.log(`[EmailService] Sent live email to ${recipient}: ${info.messageId}`);
         return { status: 'Sent', messageId: info.messageId };
       } catch (err) {
-        console.warn(`[EmailService] Primary transport failed (${err.message}). Attempting port 465 SSL fallback...`);
-        try {
-          const fallbackTransporter = nodemailer.createTransport({
-            host: 'smtp.gmail.com',
-            port: 465,
-            secure: true,
-            auth: {
-              user: this.user,
-              pass: this.pass
-            },
-            tls: {
-              rejectUnauthorized: false
-            },
-            family: 4,
-            connectionTimeout: 15000
-          });
-          const info = await fallbackTransporter.sendMail({
-            from: this.from,
-            to: recipient,
-            subject,
-            html
-          });
-          console.log(`[EmailService] Sent live email via fallback port 465 to ${recipient}: ${info.messageId}`);
-          return { status: 'Sent', messageId: info.messageId };
-        } catch (fallbackErr) {
-          console.error(`[EmailService] Failed to send email to ${recipient}:`, fallbackErr.message);
-          return { status: 'Failed', error: fallbackErr.message };
-        }
+        console.error(`[EmailService] SMTP error for ${recipient}:`, err.message);
+        return { status: 'Failed', error: err.message };
       }
     } else {
       // Simulation mode: write email file for audit / verification

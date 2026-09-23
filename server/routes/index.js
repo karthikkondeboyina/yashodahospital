@@ -15,6 +15,7 @@ router.get('/health', (req, res) => {
     timestamp: new Date().toISOString(),
     service: 'CareConnect AI Hospital Service',
     emailConfigured: emailService.isConfigured,
+    emailMode: emailService.mode || 'unknown',
     smtpHost: emailService.host,
     smtpPort: emailService.port,
     smtpUser: emailService.user ? emailService.user.replace(/(?<=.{3}).(?=.*@)/g, '*') : 'NOT_SET'
