@@ -20,14 +20,14 @@ class EmailService {
     this.isConfigured = !!(this.user && this.pass);
 
     if (this.isConfigured) {
-      // Direct explicit SMTP config (Render blocks standard 587 STARTTLS, so port 465 SSL with IPv4 is required)
+      // Default to port 465 with direct SSL encryption (Port 587 STARTTLS suffers connection drops across many networks and cloud providers)
       const smtpPort = this.port ? parseInt(this.port, 10) : 465;
-      const isSecure = smtpPort === 465;
+      const isSecure = smtpPort === 465 || this.secure;
 
       this.transporter = nodemailer.createTransport({
         host: 'smtp.gmail.com',
-        port: smtpPort,
-        secure: isSecure, // true for 465 SSL
+        port: 465,
+        secure: true, // SSL direct
         auth: {
           user: this.user,
           pass: this.pass
@@ -35,12 +35,12 @@ class EmailService {
         tls: {
           rejectUnauthorized: false
         },
-        family: 4, // Forces IPv4 to bypass cloud IPv6 unreachability
+        family: 4, // Forces IPv4
         connectionTimeout: 15000,
         greetingTimeout: 15000,
         socketTimeout: 20000
       });
-      console.log(`EmailService: Configured with live Gmail SMTP transport on smtp.gmail.com:${smtpPort} (IPv4 forced, secure: ${isSecure}).`);
+      console.log(`EmailService: Configured with live Gmail SMTP transport on smtp.gmail.com:465 (Direct SSL, IPv4).`);
     } else {
       console.log('EmailService: Running in simulation mode (no SMTP credentials provided). Emails will be saved to mock-emails/ and recorded.');
     }

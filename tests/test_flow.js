@@ -92,10 +92,9 @@ async function runTests() {
 
     // TEST 5: Successful Booking & Slot Reservation
     const slots = ['10:00 AM', '11:00 AM', '12:00 PM', '04:00 PM', '05:00 PM', '06:00 PM'];
-    const uniqueTime = slots[Math.floor(Math.random() * slots.length)];
-    // Random future date (Mon-Fri)
-    const randomDay = String(Math.floor(10 + Math.random() * 15)).padStart(2, '0');
-    const testDate = `2026-12-${randomDay}`;
+    // Ensure fresh unique consultation day (Mon-Sat) for Doctor 1
+    const testDate = `2026-11-${String(10 + Math.floor(Math.random() * 10)).padStart(2, '0')}`;
+    const uniqueTime = `10:00 AM`;
     const bookingPayload = {
       doctorId: 1,
       appointmentDate: testDate,
@@ -126,10 +125,10 @@ async function runTests() {
     assert(secondBooking.status === 409 && secondBooking.body.code === 'SLOT_OCCUPIED', 'TEST 6: Duplicate booking on identical doctor/date/time is REJECTED with 409 Conflict');
 
     // TEST 7: Notification Event & Email Dispatch Verification
-    // Allow time for live Gmail SMTP network handshake
+    // Allow adequate time for live Gmail SMTP network handshake
     let createdNotif = null;
-    for (let i = 0; i < 10; i++) {
-      await new Promise(r => setTimeout(r, 600));
+    for (let i = 0; i < 20; i++) {
+      await new Promise(r => setTimeout(r, 800));
       const notifs = await request('GET', `/notifications`);
       createdNotif = notifs.body.find(n => n.appointment_ref === createdRef);
       if (createdNotif && createdNotif.status === 'Sent') break;
